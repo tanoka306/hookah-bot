@@ -12,7 +12,7 @@ TOKEN = os.environ.get("8771740048:AAED_MwXxyKCLVTrSAs5KrIXC0qEK40Nd-M")
 EXCEL_FILE = "tanaka.xls"
 
 # ССЫЛКА НА КАРТИНКУ (ЗАМЕНИТЕ НА ВАШУ ПОСЛЕ ЗАГРУЗКИ НА GITHUB)
-PICTURE_URL = "https://raw.githubusercontent.com/ВАШ_НИК/hookah-bot/main/images/pic_collage.jpg"
+PICTURE_URL = "https://github.com/tanoka306/hookah-bot/blob/main/images/pic_collage.jpg"
 
 app = Flask(__name__)
 
