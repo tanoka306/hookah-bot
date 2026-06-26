@@ -85,7 +85,6 @@ def filter_by_picture(df, picture):
         return df[df["Ароматика"].str.contains("алкогольн|напиточн|чайный|десерт|парфюм|безаромат", na=False)]
 
 def get_unique_hookah(df, full_df, used_hookahs):
-    """Получить случайный кальян, который ещё не был использован"""
     if df.empty:
         df = full_df
     
@@ -164,7 +163,7 @@ async def start_handler(update, context):
     return BLAND
 
 async def restart_handler(update, context):
-    """Перезапуск с самого начала (приветствие + кнопка Старт)"""
+    """Полный перезапуск — возврат к приветствию"""
     keyboard = [[KeyboardButton("🚀 Старт")]]
     await update.message.reply_text(
         "🌟 *Добро пожаловать в лаунж нового поколения — Танока!* 🌟\n\n"
@@ -238,9 +237,10 @@ async def result_handler(update, context):
     choice = update.message.text.lower()
     if "перезагрузка" in choice:
         context.user_data["used_hookahs"] = []
+        keyboard = [[KeyboardButton("🚀 Старт")]]
         await update.message.reply_text(
             "🔄 Начинаем подбор заново!",
-            reply_markup=ReplyKeyboardMarkup([["🚀 Старт"]], resize_keyboard=True)
+            reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
         )
         return WELCOME
     else:
