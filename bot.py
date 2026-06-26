@@ -84,9 +84,32 @@ def filter_by_picture(df, picture):
     else:
         return df[df["Ароматика"].str.contains("алкогольн|напиточн|чайный|десерт|парфюм|безаромат", na=False)]
 
-def get_random_hookah(df, full_df):
+def get_unique_hookah(df, full_df, used_hookahs):
+    """Получить случайный кальян, который ещё не был использован"""
     if df.empty:
         df = full_df
+    
+    # Если все кальяны уже использованы — сбрасываем список
+    if len(used_hookahs) >= len(df):
+        used_hookahs.clear()
+    
+    # Пытаемся найти уникальный кальян
+    attempts = 0
+    while attempts < 50:
+        row = df.sample(1).iloc[0]
+        hookah_id = f"{row['Бренд']}_{row['Название_аромата']}"
+        if hookah_id not in used_hookahs:
+            used_hookahs.append(hookah_id)
+            return {
+                "brand": row['Бренд'],
+                "name": row['Название_аромата'],
+                "strength": row['Крепость'].capitalize(),
+                "taste": row['Вкус'].capitalize(),
+                "aroma": row['Ароматика'].capitalize()
+            }
+        attempts += 1
+    
+    # Если не нашли уникальный — берём любой
     row = df.sample(1).iloc[0]
     return {
         "brand": row['Бренд'],
@@ -128,6 +151,7 @@ async def start(update, context):
 
 async def start_handler(update, context):
     context.user_data["hookahs"] = []
+    context.user_data["used_hookahs"] = []  # ← для отслеживания уже использованных
     context.user_data["full_df"] = df
     context.user_data["current_df"] = df.copy()
     context.user_data["selected_strength"] = None
@@ -184,7 +208,8 @@ async def trip_handler(update, context):
     filtered = filter_by_trip(current, trip)
     context.user_data["current_df"] = filtered
     
-    hookah = get_random_hookah(filtered, full)
+    used_hookahs = context.user_data.get("used_hookahs", [])
+    hookah = get_unique_hookah(filtered, full, used_hookahs)
     context.user_data["hookahs"] = [hookah]
     
     strength = context.user_data.get("selected_strength", "")
@@ -200,6 +225,8 @@ async def trip_handler(update, context):
 async def result_handler(update, context):
     choice = update.message.text.lower()
     if "перезагрузка" in choice:
+        # Сбрасываем использованные кальяны
+        context.user_data["used_hookahs"] = []
         await update.message.reply_text("🔄 Начинаем подбор заново!", reply_markup=ReplyKeyboardMarkup([["🚀 Старт"]], resize_keyboard=True))
         return WELCOME
     else:
@@ -216,7 +243,7 @@ async def add_more_handler(update, context):
     if choice == "нет":
         hookahs = context.user_data.get("hookahs", [])
         result = format_hookah_result(hookahs)
-        keyboard = [[KeyboardButton("🔄 Начать заново")]]
+        keyboard = [[KeyboardButton("🚀 Старт")]]
         await update.message.reply_text(
             "🌟 *Благодарим за ответы!*\n\n" + result,
             reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True),
@@ -243,7 +270,8 @@ async def country_handler(update, context):
     
     context.user_data["current_df"] = filtered
     
-    hookah = get_random_hookah(filtered, full)
+    used_hookahs = context.user_data.get("used_hookahs", [])
+    hookah = get_unique_hookah(filtered, full, used_hookahs)
     hookahs = context.user_data.get("hookahs", [])
     hookahs.append(hookah)
     context.user_data["hookahs"] = hookahs
@@ -265,7 +293,7 @@ async def add_more_2_handler(update, context):
     if choice == "нет":
         hookahs = context.user_data.get("hookahs", [])
         result = format_hookah_result(hookahs)
-        keyboard = [[KeyboardButton("🔄 Начать заново")]]
+        keyboard = [[KeyboardButton("🚀 Старт")]]
         await update.message.reply_text(
             "🌟 *Благодарим за ответы!*\n\n" + result,
             reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True),
@@ -297,7 +325,8 @@ async def picture_handler(update, context):
     if filtered.empty:
         filtered = filter_by_picture(full, picture)
     
-    hookah = get_random_hookah(filtered, full)
+    used_hookahs = context.user_data.get("used_hookahs", [])
+    hookah = get_unique_hookah(filtered, full, used_hookahs)
     hookahs = context.user_data.get("hookahs", [])
     hookahs.append(hookah)
     context.user_data["hookahs"] = hookahs
@@ -305,25 +334,13 @@ async def picture_handler(update, context):
     strength = context.user_data.get("selected_strength", "")
     result = format_hookah_result(hookahs, strength)
     
-    keyboard = [[KeyboardButton("🔄 Начать заново")]]
+    keyboard = [[KeyboardButton("🚀 Старт")]]
     await update.message.reply_text(
         "🌟 *Благодарим за ответы!*\n\n" + result,
         reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True),
         parse_mode="Markdown"
     )
     return ConversationHandler.END
-
-async def restart_handler(update, context):
-    keyboard = [[KeyboardButton("🚀 Старт")]]
-    await update.message.reply_text(
-        "🌟 *Добро пожаловать в лаунж нового поколения — Танока!* 🌟\n\n"
-        "Сегодня я подберу для вас идеальный кальян.\n"
-        "Пожалуйста, ответьте на несколько моих вопросов.\n\n"
-        "👇 Нажмите на кнопку *«Старт»*, чтобы начать.",
-        reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True),
-        parse_mode="Markdown"
-    )
-    return WELCOME
 
 async def cancel(update, context):
     await update.message.reply_text("👋 До встречи!")
@@ -342,7 +359,7 @@ def main():
         states={
             WELCOME: [
                 MessageHandler(filters.Text("🚀 Старт"), start_handler),
-                MessageHandler(filters.Text("🔄 Начать заново"), restart_handler)
+                MessageHandler(filters.Text("🔄 Начать заново"), start_handler)
             ],
             BLAND: [MessageHandler(filters.TEXT & ~filters.COMMAND, bland_handler)],
             STRENGTH: [MessageHandler(filters.TEXT & ~filters.COMMAND, strength_handler)],
