@@ -116,8 +116,12 @@ def format_hookah_result(hookahs, strength=None):
 async def start(update, context):
     keyboard = [[KeyboardButton("❓ Подобрать")]]
     await update.message.reply_text(
-        "🌟 Добро пожаловать в Tanoka!\n\nНажмите «Подобрать», чтобы начать.",
-        reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+        "🌟 *Добро пожаловать в лаунж нового поколения — Танока!* 🌟\n\n"
+        "Сегодня я подберу для вас идеальный кальян.\n"
+        "Пожалуйста, ответьте на несколько моих вопросов.\n\n"
+        "👇 Нажмите на кнопку *«Подобрать»*, чтобы начать.",
+        reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True),
+        parse_mode="Markdown"
     )
     return WELCOME
 
@@ -128,8 +132,9 @@ async def welcome_handler(update, context):
     context.user_data["selected_strength"] = None
     keyboard = [["Классический", "Сигарный лист"]]
     await update.message.reply_text(
-        "📋 Вопрос 1: Какой кальян вы предпочтёте?",
-        reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
+        "📋 *Вопрос 1:* Какой кальян вы предпочтёте?",
+        reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True),
+        parse_mode="Markdown"
     )
     return BLAND
 
@@ -140,8 +145,9 @@ async def bland_handler(update, context):
     context.user_data["current_df"] = filtered
     keyboard = [["Крепкий", "Выше среднего", "Средний", "Легкий"]]
     await update.message.reply_text(
-        "📋 Вопрос 2: Какую крепость предпочитаете?",
-        reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
+        "📋 *Вопрос 2:* Какую крепость предпочитаете?",
+        reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True),
+        parse_mode="Markdown"
     )
     return STRENGTH
 
@@ -150,8 +156,9 @@ async def strength_handler(update, context):
     context.user_data["selected_strength"] = strength.capitalize()
     keyboard = [["Лимонад", "Глинтвейн", "Травяной чай", "Молочный коктейль"]]
     await update.message.reply_text(
-        "📋 Вопрос 3: Какой напиток вы выберете?",
-        reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
+        "📋 *Вопрос 3:* Какой напиток вы выберете?",
+        reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True),
+        parse_mode="Markdown"
     )
     return DRINK
 
@@ -162,8 +169,9 @@ async def drink_handler(update, context):
     context.user_data["current_df"] = filtered
     keyboard = [["Отдых загородом", "Тропические страны", "Гранд-тур по мегаполисам"]]
     await update.message.reply_text(
-        "📋 Вопрос 4: Куда бы вы отправились на отдых?",
-        reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
+        "📋 *Вопрос 4:* Куда бы вы отправились на отдых?",
+        reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True),
+        parse_mode="Markdown"
     )
     return TRIP
 
@@ -248,13 +256,22 @@ async def add_more_2_handler(update, context):
         await update.message.reply_text("🌟 Благодарим за ответы!\n\n" + result)
         return ConversationHandler.END
     else:
-        await update.message.reply_text(
-            "🖼️ Выберите цифру:\n"
-            "1 — Ягодный, цветочный, травянистый, древесный, ментоловый, ореховый\n"
-            "2 — Цитрусовый, тропический, напиточный, фруктовый, алкогольный\n"
-            "3 — Безароматика, специи, чайный, десертный, парфюм, сливочный\n"
-            "4 — Алкогольный, напиточный, чайный, десертный, парфюм, безароматика"
+        # ============ ОТПРАВКА КАРТИНКИ ============
+        picture_url = "https://raw.githubusercontent.com/tanoka306/hookah-bot/main/pic_collage.jpg"
+        
+        await update.message.reply_photo(
+            photo=picture_url,
+            caption=(
+                "🖼️ *Какая картинка вам нравится больше всего?*\n\n"
+                "Выберите цифру:\n"
+                "1️⃣ — Ягодный, цветочный, травянистый, древесный, ментоловый, ореховый\n"
+                "2️⃣ — Цитрусовый, тропический, напиточный, фруктовый, алкогольный\n"
+                "3️⃣ — Безароматика, специи, чайный, десертный, парфюм, сливочный\n"
+                "4️⃣ — Алкогольный, напиточный, чайный, десертный, парфюм, безароматика"
+            ),
+            parse_mode="Markdown"
         )
+        
         keyboard = [["1", "2", "3", "4"]]
         await update.message.reply_text(
             "Выберите цифру: 1, 2, 3 или 4",
