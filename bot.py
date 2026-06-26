@@ -113,23 +113,27 @@ def format_hookah_result(hookahs, strength=None):
     return result
 
 # ================= ОБРАБОТЧИКИ КОМАНД =================
+
 async def start(update, context):
-    keyboard = [[KeyboardButton("❓ Подобрать")]]
+    """Первое сообщение — только кнопка Старт"""
+    keyboard = [[KeyboardButton("🚀 Старт")]]
     await update.message.reply_text(
         "🌟 *Добро пожаловать в лаунж нового поколения — Танока!* 🌟\n\n"
         "Сегодня я подберу для вас идеальный кальян.\n"
         "Пожалуйста, ответьте на несколько моих вопросов.\n\n"
-        "👇 Нажмите на кнопку *«Подобрать»*, чтобы начать.",
+        "👇 Нажмите на кнопку *«Старт»*, чтобы начать.",
         reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True),
         parse_mode="Markdown"
     )
     return WELCOME
 
-async def welcome_handler(update, context):
+async def start_handler(update, context):
+    """Обработчик кнопки Старт — переход к вопросам"""
     context.user_data["hookahs"] = []
     context.user_data["full_df"] = df
     context.user_data["current_df"] = df.copy()
     context.user_data["selected_strength"] = None
+    
     keyboard = [["Классический", "Сигарный лист"]]
     await update.message.reply_text(
         "📋 *Вопрос 1:* Какой кальян вы предпочтёте?",
@@ -198,7 +202,7 @@ async def trip_handler(update, context):
 async def result_handler(update, context):
     choice = update.message.text.lower()
     if "перезагрузка" in choice:
-        await update.message.reply_text("🔄 Начинаем подбор заново!", reply_markup=ReplyKeyboardMarkup([["❓ Подобрать"]], resize_keyboard=True))
+        await update.message.reply_text("🔄 Начинаем подбор заново!", reply_markup=ReplyKeyboardMarkup([["🚀 Старт"]], resize_keyboard=True))
         return WELCOME
     else:
         keyboard = [["Да", "Нет"]]
@@ -213,7 +217,11 @@ async def add_more_handler(update, context):
     if choice == "нет":
         hookahs = context.user_data.get("hookahs", [])
         result = format_hookah_result(hookahs)
-        await update.message.reply_text("🌟 Благодарим за ответы!\n\n" + result)
+        keyboard = [[KeyboardButton("🔄 Начать заново")]]
+        await update.message.reply_text(
+            "🌟 Благодарим за ответы!\n\n" + result,
+            reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+        )
         return ConversationHandler.END
     else:
         keyboard = [["Куба", "Тайланд", "Индия", "Россия", "Франция"]]
@@ -238,7 +246,11 @@ async def country_handler(update, context):
     
     if len(hookahs) >= 3:
         result = format_hookah_result(hookahs)
-        await update.message.reply_text("🌟 Благодарим за ответы!\n\n" + result)
+        keyboard = [[KeyboardButton("🔄 Начать заново")]]
+        await update.message.reply_text(
+            "🌟 Благодарим за ответы!\n\n" + result,
+            reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+        )
         return ConversationHandler.END
     
     keyboard = [["Да", "Нет"]]
@@ -253,10 +265,13 @@ async def add_more_2_handler(update, context):
     if choice == "нет":
         hookahs = context.user_data.get("hookahs", [])
         result = format_hookah_result(hookahs)
-        await update.message.reply_text("🌟 Благодарим за ответы!\n\n" + result)
+        keyboard = [[KeyboardButton("🔄 Начать заново")]]
+        await update.message.reply_text(
+            "🌟 Благодарим за ответы!\n\n" + result,
+            reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+        )
         return ConversationHandler.END
     else:
-        # ============ ОТПРАВКА КАРТИНКИ (БЕЗ СПИСКА) ============
         picture_url = "https://raw.githubusercontent.com/tanoka306/hookah-bot/main/pic_collage.jpg"
         
         await update.message.reply_photo(
@@ -283,8 +298,25 @@ async def picture_handler(update, context):
     hookahs = context.user_data.get("hookahs", [])
     hookahs.append(hookah)
     result = format_hookah_result(hookahs)
-    await update.message.reply_text("🌟 Благодарим за ответы!\n\n" + result)
+    keyboard = [[KeyboardButton("🔄 Начать заново")]]
+    await update.message.reply_text(
+        "🌟 Благодарим за ответы!\n\n" + result,
+        reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+    )
     return ConversationHandler.END
+
+async def restart_handler(update, context):
+    """Обработчик кнопки 'Начать заново' — возвращает в начало"""
+    keyboard = [[KeyboardButton("🚀 Старт")]]
+    await update.message.reply_text(
+        "🌟 *Добро пожаловать в лаунж нового поколения — Танока!* 🌟\n\n"
+        "Сегодня я подберу для вас идеальный кальян.\n"
+        "Пожалуйста, ответьте на несколько моих вопросов.\n\n"
+        "👇 Нажмите на кнопку *«Старт»*, чтобы начать.",
+        reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True),
+        parse_mode="Markdown"
+    )
+    return WELCOME
 
 async def cancel(update, context):
     await update.message.reply_text("👋 До встречи!")
@@ -301,7 +333,10 @@ def main():
     conv = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
         states={
-            WELCOME: [MessageHandler(filters.Text("❓ Подобрать"), welcome_handler)],
+            WELCOME: [
+                MessageHandler(filters.Text("🚀 Старт"), start_handler),
+                MessageHandler(filters.Text("🔄 Начать заново"), restart_handler)
+            ],
             BLAND: [MessageHandler(filters.TEXT & ~filters.COMMAND, bland_handler)],
             STRENGTH: [MessageHandler(filters.TEXT & ~filters.COMMAND, strength_handler)],
             DRINK: [MessageHandler(filters.TEXT & ~filters.COMMAND, drink_handler)],
