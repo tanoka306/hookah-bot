@@ -115,7 +115,6 @@ def format_hookah_result(hookahs, strength=None):
 # ================= ОБРАБОТЧИКИ КОМАНД =================
 
 async def start(update, context):
-    """Первое сообщение — только кнопка Старт"""
     keyboard = [[KeyboardButton("🚀 Старт")]]
     await update.message.reply_text(
         "🌟 *Добро пожаловать в лаунж нового поколения — Танока!* 🌟\n\n"
@@ -128,7 +127,6 @@ async def start(update, context):
     return WELCOME
 
 async def start_handler(update, context):
-    """Обработчик кнопки Старт — переход к вопросам"""
     context.user_data["hookahs"] = []
     context.user_data["full_df"] = df
     context.user_data["current_df"] = df.copy()
@@ -207,8 +205,9 @@ async def result_handler(update, context):
     else:
         keyboard = [["Да", "Нет"]]
         await update.message.reply_text(
-            "📋 Добавить еще один вкус?",
-            reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
+            "📋 *Добавить еще один вкус?*",
+            reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True),
+            parse_mode="Markdown"
         )
         return ADD_MORE
 
@@ -219,15 +218,17 @@ async def add_more_handler(update, context):
         result = format_hookah_result(hookahs)
         keyboard = [[KeyboardButton("🔄 Начать заново")]]
         await update.message.reply_text(
-            "🌟 Благодарим за ответы!\n\n" + result,
-            reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+            "🌟 *Благодарим за ответы!*\n\n" + result,
+            reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True),
+            parse_mode="Markdown"
         )
         return ConversationHandler.END
     else:
         keyboard = [["Куба", "Тайланд", "Индия", "Россия", "Франция"]]
         await update.message.reply_text(
-            "📋 Какую страну ты выберешь?",
-            reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
+            "📋 *Какую страну ты выберешь?*",
+            reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True),
+            parse_mode="Markdown"
         )
         return COUNTRY
 
@@ -235,40 +236,40 @@ async def country_handler(update, context):
     country = update.message.text.lower()
     full = context.user_data.get("full_df", df)
     current = context.user_data.get("current_df", df)
+    
     filtered = filter_by_country(current, country)
     if filtered.empty:
         filtered = filter_by_country(full, country)
+    
     context.user_data["current_df"] = filtered
+    
     hookah = get_random_hookah(filtered, full)
     hookahs = context.user_data.get("hookahs", [])
     hookahs.append(hookah)
     context.user_data["hookahs"] = hookahs
     
-    if len(hookahs) >= 3:
-        result = format_hookah_result(hookahs)
-        keyboard = [[KeyboardButton("🔄 Начать заново")]]
-        await update.message.reply_text(
-            "🌟 Благодарим за ответы!\n\n" + result,
-            reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-        )
-        return ConversationHandler.END
+    strength = context.user_data.get("selected_strength", "")
+    result = format_hookah_result(hookahs, strength)
     
     keyboard = [["Да", "Нет"]]
     await update.message.reply_text(
-        "📋 Добавить еще один вкус?",
-        reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
+        result + "\n\n📋 *Добавить еще один вкус?*",
+        reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True),
+        parse_mode="Markdown"
     )
     return ADD_MORE_2
 
 async def add_more_2_handler(update, context):
     choice = update.message.text.lower()
+    
     if choice == "нет":
         hookahs = context.user_data.get("hookahs", [])
         result = format_hookah_result(hookahs)
         keyboard = [[KeyboardButton("🔄 Начать заново")]]
         await update.message.reply_text(
-            "🌟 Благодарим за ответы!\n\n" + result,
-            reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+            "🌟 *Благодарим за ответы!*\n\n" + result,
+            reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True),
+            parse_mode="Markdown"
         )
         return ConversationHandler.END
     else:
@@ -291,22 +292,28 @@ async def picture_handler(update, context):
     picture = update.message.text.lower()
     full = context.user_data.get("full_df", df)
     current = context.user_data.get("current_df", df)
+    
     filtered = filter_by_picture(current, picture)
     if filtered.empty:
         filtered = filter_by_picture(full, picture)
+    
     hookah = get_random_hookah(filtered, full)
     hookahs = context.user_data.get("hookahs", [])
     hookahs.append(hookah)
-    result = format_hookah_result(hookahs)
+    context.user_data["hookahs"] = hookahs
+    
+    strength = context.user_data.get("selected_strength", "")
+    result = format_hookah_result(hookahs, strength)
+    
     keyboard = [[KeyboardButton("🔄 Начать заново")]]
     await update.message.reply_text(
-        "🌟 Благодарим за ответы!\n\n" + result,
-        reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+        "🌟 *Благодарим за ответы!*\n\n" + result,
+        reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True),
+        parse_mode="Markdown"
     )
     return ConversationHandler.END
 
 async def restart_handler(update, context):
-    """Обработчик кнопки 'Начать заново' — возвращает в начало"""
     keyboard = [[KeyboardButton("🚀 Старт")]]
     await update.message.reply_text(
         "🌟 *Добро пожаловать в лаунж нового поколения — Танока!* 🌟\n\n"
