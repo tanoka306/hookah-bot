@@ -6,6 +6,7 @@ from flask import Flask, request
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ConversationHandler, ContextTypes
 
+# ================= НАСТРОЙКИ =================
 TOKEN = "8771740048:AAED_MwXxyKCLVTrSAs5KrIXC0qEK40Nd-M"
 EXCEL_FILE = "tanaka.xls"
 
@@ -16,7 +17,13 @@ WELCOME, BLAND, STRENGTH, DRINK, TRIP, RESULT, ADD_MORE, COUNTRY, ADD_MORE_2, PI
 # ================= ЗАГРУЗКА ДАННЫХ =================
 def load_data():
     try:
-        df = pd.read_excel(EXCEL_FILE, sheet_name="Sheet1")
+        # Пытаемся читать .xls или .xlsx
+        if os.path.exists(EXCEL_FILE):
+            df = pd.read_excel(EXCEL_FILE, sheet_name="Sheet1")
+        else:
+            # Пробуем .xlsx если .xls не найден
+            df = pd.read_excel("tanaka.xlsx", sheet_name="Sheet1")
+        
         df = df.iloc[:, :7]
         df.columns = ["Наименование", "Блэнд", "Бренд", "Название_аромата", "Крепость", "Вкус", "Ароматика"]
         df = df[["Блэнд", "Бренд", "Название_аромата", "Крепость", "Вкус", "Ароматика"]]
@@ -30,7 +37,7 @@ def load_data():
         print(f"✅ Загружено {len(df)} табаков")
         return df
     except Exception as e:
-        print(f"❌ Ошибка: {e}")
+        print(f"❌ Ошибка загрузки: {e}")
         return None
 
 df = load_data()
@@ -283,54 +290,61 @@ async def cancel(update, context):
 
 # ================= НАСТРОЙКА ВЕБХУКОВ =================
 
+# Создаём приложение бота один раз
+application = Application.builder().token(TOKEN).build()
+
+# Добавляем обработчики
+conv = ConversationHandler(
+    entry_points=[CommandHandler("start", start)],
+    states={
+        WELCOME: [MessageHandler(filters.Text("❓ Подобрать"), welcome_handler)],
+        BLAND: [MessageHandler(filters.TEXT & ~filters.COMMAND, bland_handler)],
+        STRENGTH: [MessageHandler(filters.TEXT & ~filters.COMMAND, strength_handler)],
+        DRINK: [MessageHandler(filters.TEXT & ~filters.COMMAND, drink_handler)],
+        TRIP: [MessageHandler(filters.TEXT & ~filters.COMMAND, trip_handler)],
+        RESULT: [MessageHandler(filters.TEXT & ~filters.COMMAND, result_handler)],
+        ADD_MORE: [MessageHandler(filters.TEXT & ~filters.COMMAND, add_more_handler)],
+        COUNTRY: [MessageHandler(filters.TEXT & ~filters.COMMAND, country_handler)],
+        ADD_MORE_2: [MessageHandler(filters.TEXT & ~filters.COMMAND, add_more_2_handler)],
+        PICTURE: [MessageHandler(filters.TEXT & ~filters.COMMAND, picture_handler)],
+    },
+    fallbacks=[CommandHandler("cancel", cancel)],
+)
+application.add_handler(conv)
+
 @app.route('/', methods=['GET', 'POST'])
 def webhook():
     """Обработка вебхука от Telegram"""
     if request.method == 'POST':
-        update = Update.de_json(request.get_json(force=True), application.bot)
-        application.process_update(update)
+        try:
+            update = Update.de_json(request.get_json(force=True), application.bot)
+            application.process_update(update)
+        except Exception as e:
+            logging.error(f"Ошибка обработки вебхука: {e}")
     return 'OK', 200
 
-@app.route('/set_webhook', methods=['GET'])
+@app.route('/set_webhook')
 def set_webhook():
-    """Установка вебхука (вызвать один раз)"""
+    """Установка вебхука — вызовите этот URL один раз через браузер"""
+    # Получаем URL из запроса или используем текущий домен
     webhook_url = request.args.get('url')
-    if webhook_url:
+    if not webhook_url:
+        # Пытаемся определить домен автоматически
+        host = request.host
+        scheme = request.scheme
+        webhook_url = f"{scheme}://{host}/"
+    
+    try:
         application.bot.set_webhook(webhook_url)
         return f'✅ Webhook установлен на {webhook_url}'
-    return '❌ Укажите параметр url'
+    except Exception as e:
+        return f'❌ Ошибка установки вебхука: {e}'
 
 # ================= ЗАПУСК =================
-application = None
-
-def main():
-    global application
+if __name__ == "__main__":
     if df is None:
         print("❌ Ошибка: не загружен файл tanaka.xls")
-        return
-    
-    application = Application.builder().token(TOKEN).build()
-    
-    conv = ConversationHandler(
-        entry_points=[CommandHandler("start", start)],
-        states={
-            WELCOME: [MessageHandler(filters.Text("❓ Подобрать"), welcome_handler)],
-            BLAND: [MessageHandler(filters.TEXT & ~filters.COMMAND, bland_handler)],
-            STRENGTH: [MessageHandler(filters.TEXT & ~filters.COMMAND, strength_handler)],
-            DRINK: [MessageHandler(filters.TEXT & ~filters.COMMAND, drink_handler)],
-            TRIP: [MessageHandler(filters.TEXT & ~filters.COMMAND, trip_handler)],
-            RESULT: [MessageHandler(filters.TEXT & ~filters.COMMAND, result_handler)],
-            ADD_MORE: [MessageHandler(filters.TEXT & ~filters.COMMAND, add_more_handler)],
-            COUNTRY: [MessageHandler(filters.TEXT & ~filters.COMMAND, country_handler)],
-            ADD_MORE_2: [MessageHandler(filters.TEXT & ~filters.COMMAND, add_more_2_handler)],
-            PICTURE: [MessageHandler(filters.TEXT & ~filters.COMMAND, picture_handler)],
-        },
-        fallbacks=[CommandHandler("cancel", cancel)],
-    )
-    application.add_handler(conv)
-    
-    print("🤖 Бот готов, работает в режиме вебхуков!")
-    app.run(host='0.0.0.0', port=8000)
-
-if __name__ == "__main__":
-    main()
+    else:
+        print("🤖 Бот готов! Запускаем Flask сервер...")
+        # Запускаем сервер на порту 8000 (как в bothost.ru)
+        app.run(host='0.0.0.0', port=8000)
