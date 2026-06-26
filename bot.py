@@ -148,6 +148,8 @@ async def start(update, context):
 
 async def start_handler(update, context):
     """Начало опроса"""
+    # Очищаем данные при старте
+    context.user_data.clear()
     context.user_data["hookahs"] = []
     context.user_data["used_hookahs"] = []
     context.user_data["full_df"] = df
@@ -163,8 +165,8 @@ async def start_handler(update, context):
     return BLAND
 
 async def restart_handler(update, context):
-    """Полный перезапуск — возврат к приветствию (с очисткой данных)"""
-    # Очищаем все данные пользователя
+    """Полный перезапуск — возврат к приветствию"""
+    # Очищаем все данные
     context.user_data.clear()
     
     keyboard = [[KeyboardButton("🚀 Старт")]]
@@ -372,7 +374,11 @@ def main():
     application = Application.builder().token(TOKEN).build()
     
     conv = ConversationHandler(
-        entry_points=[CommandHandler("start", start)],
+        entry_points=[
+            CommandHandler("start", start),
+            # Добавляем кнопку "Начать заново" как entry_point
+            MessageHandler(filters.Text("🔄 Начать заново"), restart_handler)
+        ],
         states={
             WELCOME: [
                 MessageHandler(filters.Text("🚀 Старт"), start_handler),
