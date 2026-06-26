@@ -2,74 +2,41 @@ import os
 import logging
 import random
 import pandas as pd
-from flask import Flask
-from threading import Thread
+from flask import Flask, request
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ConversationHandler, ContextTypes
 
-# ================= НАСТРОЙКИ =================
 TOKEN = "8771740048:AAED_MwXxyKCLVTrSAs5KrIXC0qEK40Nd-M"
 EXCEL_FILE = "tanaka.xls"
 
-# ПРАВИЛЬНАЯ ССЫЛКА НА КАРТИНКУ (с вашим аккаунтом tanoka306)
-PICTURE_URL = "https://raw.githubusercontent.com/tanoka306/hookah-bot/main/pic_collage.jpg"
-
 app = Flask(__name__)
 
-@app.route('/')
-def home():
-    return "🤖 Hookah Bot is running!"
-
-@app.route('/health')
-def health():
-    return "OK", 200
-
-# Состояния диалога
-(
-    WELCOME,           # 0 - приветствие
-    BLAND,             # 1 - выбор блэнда
-    STRENGTH,          # 2 - выбор крепости
-    DRINK,             # 3 - выбор напитка
-    TRIP,              # 4 - выбор отдыха
-    RESULT,            # 5 - результат
-    ADD_MORE,          # 6 - добавить ещё?
-    COUNTRY,           # 7 - выбор страны
-    ADD_MORE_2,        # 8 - добавить ещё?
-    PICTURE,           # 9 - выбор картинки
-    FINAL              # 10 - финал
-) = range(11)
+WELCOME, BLAND, STRENGTH, DRINK, TRIP, RESULT, ADD_MORE, COUNTRY, ADD_MORE_2, PICTURE = range(10)
 
 # ================= ЗАГРУЗКА ДАННЫХ =================
 def load_data():
     try:
-        if not os.path.exists(EXCEL_FILE):
-            print(f"❌ Файл {EXCEL_FILE} не найден!")
-            return None
-        
         df = pd.read_excel(EXCEL_FILE, sheet_name="Sheet1")
         df = df.iloc[:, :7]
         df.columns = ["Наименование", "Блэнд", "Бренд", "Название_аромата", "Крепость", "Вкус", "Ароматика"]
         df = df[["Блэнд", "Бренд", "Название_аромата", "Крепость", "Вкус", "Ароматика"]]
         df = df.dropna(subset=["Название_аромата"])
-        
-        df["Блэнд"] = df["Блэнд"].fillna("").astype(str).str.lower().str.strip()
-        df["Крепость"] = df["Крепость"].fillna("средняя").astype(str).str.lower().str.strip()
-        df["Вкус"] = df["Вкус"].fillna("нейтральный").astype(str).str.lower().str.strip()
-        df["Ароматика"] = df["Ароматика"].fillna("универсальный").astype(str).str.lower().str.strip()
-        df["Бренд"] = df["Бренд"].fillna("Не указан").astype(str).str.strip()
-        df["Название_аромата"] = df["Название_аромата"].fillna("Не указан").astype(str).str.strip()
-        
+        df["Блэнд"] = df["Блэнд"].fillna("").astype(str).str.lower()
+        df["Крепость"] = df["Крепость"].fillna("средняя").astype(str).str.lower()
+        df["Вкус"] = df["Вкус"].fillna("нейтральный").astype(str).str.lower()
+        df["Ароматика"] = df["Ароматика"].fillna("универсальный").astype(str).str.lower()
+        df["Бренд"] = df["Бренд"].fillna("Не указан").astype(str)
+        df["Название_аромата"] = df["Название_аромата"].fillna("Не указан").astype(str)
         print(f"✅ Загружено {len(df)} табаков")
         return df
     except Exception as e:
-        print(f"❌ Ошибка загрузки: {e}")
+        print(f"❌ Ошибка: {e}")
         return None
 
 df = load_data()
-logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
+logging.basicConfig(level=logging.INFO)
 
 # ================= ФИЛЬТРАЦИЯ =================
-
 def filter_by_bland(df, bland):
     if bland == "классический":
         return df[df["Блэнд"] == "классика"]
@@ -79,59 +46,44 @@ def filter_by_bland(df, bland):
 
 def filter_by_drink(df, drink):
     if drink == "лимонад":
-        keywords = "кисл|свежий"
-        return df[df["Вкус"].str.contains(keywords, na=False)]
+        return df[df["Вкус"].str.contains("кисл|свежий", na=False)]
     elif drink == "глинтвейн":
-        keywords = "пряный|терпкий|сладкий"
-        return df[df["Вкус"].str.contains(keywords, na=False)]
+        return df[df["Вкус"].str.contains("пряный|терпкий|сладкий", na=False)]
     elif drink == "травяной чай":
-        keywords = "травян|нейтральн|без вкуса|безаромат"
-        return df[df["Вкус"].str.contains(keywords, na=False)]
+        return df[df["Вкус"].str.contains("травян|нейтральн", na=False)]
     else:
-        keywords = "сладкий"
-        return df[df["Вкус"].str.contains(keywords, na=False)]
+        return df[df["Вкус"].str.contains("сладкий", na=False)]
 
 def filter_by_trip(df, trip):
     if trip == "загородом":
         keywords = "ягод|орехов|травян|медов|древесн|чайный|цветочн|хвойн"
         return df[df["Ароматика"].str.contains(keywords, na=False)]
     elif trip == "тропики":
-        keywords = "фрукт|тропич|цитрус"
-        return df[df["Ароматика"].str.contains(keywords, na=False)]
+        return df[df["Ароматика"].str.contains("фрукт|тропич|цитрус", na=False)]
     else:
-        keywords = "десерт|сливочн|напиточн|конфет|алкогольн|парфюм|ментол|шоколадн|свежий|пряный|специи"
-        return df[df["Ароматика"].str.contains(keywords, na=False)]
+        return df[df["Ароматика"].str.contains("десерт|сливочн|напиточн|конфет|алкогольн|парфюм", na=False)]
 
 def filter_by_country(df, country):
     if country == "куба":
-        keywords = "алкогольн|напиточн|безаромат"
-        return df[df["Ароматика"].str.contains(keywords, na=False)]
+        return df[df["Ароматика"].str.contains("алкогольн|напиточн|безаромат", na=False)]
     elif country == "тайланд":
-        keywords = "фрукт|тропич|алкогольн"
-        return df[df["Ароматика"].str.contains(keywords, na=False)]
+        return df[df["Ароматика"].str.contains("фрукт|тропич|алкогольн", na=False)]
     elif country == "индия":
-        keywords = "пряный|специи|парфюм|парфюмированн"
-        return df[df["Ароматика"].str.contains(keywords, na=False)]
+        return df[df["Ароматика"].str.contains("пряный|специи|парфюм", na=False)]
     elif country == "россия":
-        keywords = "ягод|таежн|чайный|медов|орехов"
-        return df[df["Ароматика"].str.contains(keywords, na=False)]
+        return df[df["Ароматика"].str.contains("ягод|таежн|чайный|медов|орехов", na=False)]
     else:
-        keywords = "выпечк|конфет|сливочн|парфюм|винн"
-        return df[df["Ароматика"].str.contains(keywords, na=False)]
+        return df[df["Ароматика"].str.contains("выпечк|конфет|сливочн|парфюм|винн", na=False)]
 
 def filter_by_picture(df, picture):
     if picture == "1":
-        keywords = "ягод|цветочн|травян|древесн|ментол|орехов|марйуанн|хвойн"
-        return df[df["Ароматика"].str.contains(keywords, na=False)]
+        return df[df["Ароматика"].str.contains("ягод|цветочн|травян|древесн|ментол|орехов|хвойн", na=False)]
     elif picture == "2":
-        keywords = "цитрус|тропич|напиточн|фрукт|алкогольн"
-        return df[df["Ароматика"].str.contains(keywords, na=False)]
+        return df[df["Ароматика"].str.contains("цитрус|тропич|напиточн|фрукт|алкогольн", na=False)]
     elif picture == "3":
-        keywords = "безаромат|специи|чайный|десерт|парфюм|парфюмированн|цветочн|медов|сливочн"
-        return df[df["Ароматика"].str.contains(keywords, na=False)]
+        return df[df["Ароматика"].str.contains("безаромат|специи|чайный|десерт|парфюм|сливочн|медов", na=False)]
     else:
-        keywords = "алкогольн|напиточн|чайный|десерт|парфюм|безаромат"
-        return df[df["Ароматика"].str.contains(keywords, na=False)]
+        return df[df["Ароматика"].str.contains("алкогольн|напиточн|чайный|десерт|парфюм|безаромат", na=False)]
 
 def get_random_hookah(df, full_df):
     if df.empty:
@@ -147,280 +99,219 @@ def get_random_hookah(df, full_df):
 
 def format_hookah_result(hookahs, strength=None):
     if not hookahs:
-        return "❌ Не удалось подобрать кальян. Попробуйте изменить ответы."
-    
-    result = "🎉 *Отталкиваясь от ваших ответов я смог подобрать лучший вариант кальяна для вас! Приятного отдыха!* 🎉\n\n"
-    
+        return "❌ Не удалось подобрать кальян."
+    result = "🎉 Отталкиваясь от ваших ответов я смог подобрать лучший вариант!\n\n"
     for i, h in enumerate(hookahs, 1):
         result += f"━━━━━━━━━━━━━━━━━━━━━\n"
-        result += f"🍃 *Вариант {i}:* {h['name']}\n"
-        result += f"🏷️ *Бренд:* {h['brand']}\n"
+        result += f"🍃 Вариант {i}: {h['name']}\n"
+        result += f"🏷️ Бренд: {h['brand']}\n"
         if strength and i == 1:
-            result += f"🔥 *Крепость:* {strength}\n"
+            result += f"🔥 Крепость: {strength}\n"
         else:
-            result += f"🔥 *Крепость:* {h['strength']}\n"
-        result += f"🍬 *Вкус:* {h['taste']}\n"
-        result += f"🌸 *Ароматика:* {h['aroma']}\n"
-    
-    result += "\n━━━━━━━━━━━━━━━━━━━━━\n"
-    result += "😊 Приятного курения в Танока! 💨"
-    
+            result += f"🔥 Крепость: {h['strength']}\n"
+        result += f"🍬 Вкус: {h['taste']}\n"
+        result += f"🌸 Ароматика: {h['aroma']}\n"
     return result
 
-# ================= ОБРАБОТЧИКИ =================
-
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    reply_keyboard = [[KeyboardButton("❓ Подобрать")]]
+# ================= ОБРАБОТЧИКИ КОМАНД =================
+async def start(update, context):
+    keyboard = [[KeyboardButton("❓ Подобрать")]]
     await update.message.reply_text(
-        "🌟 *Добро пожаловать в лаунж нового времени \"Tanoka\"!* 🌟\n\n"
-        "🤖 Я ИИ-ассистент, который попробует подобрать для вас сегодня идеальный кальян.\n\n"
-        "Пожалуйста, ответьте на следующие вопросы.\n\n"
-        "Нажмите на кнопку *«Подобрать»*, чтобы начать.",
-        reply_markup=ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True),
-        parse_mode="Markdown"
+        "🌟 Добро пожаловать в Tanoka!\n\nНажмите «Подобрать», чтобы начать.",
+        reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
     )
     return WELCOME
 
-async def welcome_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def welcome_handler(update, context):
     context.user_data["hookahs"] = []
     context.user_data["full_df"] = df
     context.user_data["current_df"] = df.copy()
     context.user_data["selected_strength"] = None
-    
-    reply_keyboard = [["Классический", "Сигарный лист"]]
+    keyboard = [["Классический", "Сигарный лист"]]
     await update.message.reply_text(
-        "📋 *Вопрос 1:*\nКакой кальян вы предпочтёте?",
-        reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True, resize_keyboard=True),
-        parse_mode="Markdown"
+        "📋 Вопрос 1: Какой кальян вы предпочтёте?",
+        reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
     )
     return BLAND
 
-async def bland_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def bland_handler(update, context):
     bland = update.message.text.lower()
     current = context.user_data.get("current_df", df)
     filtered = filter_by_bland(current, bland)
     context.user_data["current_df"] = filtered
-    context.user_data["selected_bland"] = bland
-    
-    print(f"📊 После блэнда осталось: {len(filtered)}")
-    
-    reply_keyboard = [["Крепкий", "Выше среднего", "Средний", "Легкий"]]
+    keyboard = [["Крепкий", "Выше среднего", "Средний", "Легкий"]]
     await update.message.reply_text(
-        "📋 *Вопрос 2:*\nКакую крепость предпочитаете?",
-        reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True, resize_keyboard=True),
-        parse_mode="Markdown"
+        "📋 Вопрос 2: Какую крепость предпочитаете?",
+        reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
     )
     return STRENGTH
 
-async def strength_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def strength_handler(update, context):
     strength = update.message.text.lower()
     context.user_data["selected_strength"] = strength.capitalize()
-    
-    reply_keyboard = [["Лимонад", "Глинтвейн", "Травяной чай", "Молочный коктейль"]]
+    keyboard = [["Лимонад", "Глинтвейн", "Травяной чай", "Молочный коктейль"]]
     await update.message.reply_text(
-        "📋 *Вопрос 3:*\nКакой напиток вы выберете?",
-        reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True, resize_keyboard=True),
-        parse_mode="Markdown"
+        "📋 Вопрос 3: Какой напиток вы выберете?",
+        reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
     )
     return DRINK
 
-async def drink_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def drink_handler(update, context):
     drink = update.message.text.lower()
     current = context.user_data.get("current_df", df)
     filtered = filter_by_drink(current, drink)
     context.user_data["current_df"] = filtered
-    
-    print(f"📊 После напитка осталось: {len(filtered)}")
-    
-    reply_keyboard = [["Отдых загородом", "Тропические страны", "Гранд-тур по мегаполисам"]]
+    keyboard = [["Отдых загородом", "Тропические страны", "Гранд-тур по мегаполисам"]]
     await update.message.reply_text(
-        "📋 *Вопрос 4:*\nКуда бы вы отправились на отдых?",
-        reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True, resize_keyboard=True),
-        parse_mode="Markdown"
+        "📋 Вопрос 4: Куда бы вы отправились на отдых?",
+        reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
     )
     return TRIP
 
-async def trip_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def trip_handler(update, context):
     trip = update.message.text.lower()
     current = context.user_data.get("current_df", df)
     full = context.user_data.get("full_df", df)
     filtered = filter_by_trip(current, trip)
     context.user_data["current_df"] = filtered
     
-    print(f"📊 Финальный результат: {len(filtered)}")
-    
     hookah = get_random_hookah(filtered, full)
     context.user_data["hookahs"] = [hookah]
-    context.user_data["last_filtered"] = filtered
     
     strength = context.user_data.get("selected_strength", "")
     result = format_hookah_result([hookah], strength)
     
-    reply_keyboard = [["✅ Подтвердить вкус", "🔄 Перезагрузка вкуса"]]
+    keyboard = [["✅ Подтвердить вкус", "🔄 Перезагрузка вкуса"]]
     await update.message.reply_text(
         result,
-        reply_markup=ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True),
-        parse_mode="Markdown"
+        reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
     )
     return RESULT
 
-async def result_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def result_handler(update, context):
     choice = update.message.text.lower()
-    
     if "перезагрузка" in choice:
-        await update.message.reply_text(
-            "🔄 Начинаем подбор заново!",
-            reply_markup=ReplyKeyboardMarkup([["❓ Подобрать"]], resize_keyboard=True)
-        )
+        await update.message.reply_text("🔄 Начинаем подбор заново!", reply_markup=ReplyKeyboardMarkup([["❓ Подобрать"]], resize_keyboard=True))
         return WELCOME
-    
     else:
-        reply_keyboard = [["Да", "Нет"]]
+        keyboard = [["Да", "Нет"]]
         await update.message.reply_text(
-            "📋 *Вопрос:*\nДобавить еще один вкус?",
-            reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True, resize_keyboard=True),
-            parse_mode="Markdown"
+            "📋 Добавить еще один вкус?",
+            reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
         )
         return ADD_MORE
 
-async def add_more_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def add_more_handler(update, context):
     choice = update.message.text.lower()
-    
     if choice == "нет":
         hookahs = context.user_data.get("hookahs", [])
         result = format_hookah_result(hookahs)
-        await update.message.reply_text(
-            "🌟 *Благодарим за ответы и выбор ИИ-ассистента!*\n\n"
-            "Ваш идеальный кальян будет готов уже скоро.\n"
-            "Приятного отдыха! 🎉",
-            parse_mode="Markdown"
-        )
-        await update.message.reply_text(result, parse_mode="Markdown")
+        await update.message.reply_text("🌟 Благодарим за ответы!\n\n" + result)
         return ConversationHandler.END
-    
     else:
-        reply_keyboard = [["Куба", "Тайланд", "Индия", "Россия", "Франция"]]
+        keyboard = [["Куба", "Тайланд", "Индия", "Россия", "Франция"]]
         await update.message.reply_text(
-            "📋 *Вопрос:*\nКакую страну ты выберешь?",
-            reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True, resize_keyboard=True),
-            parse_mode="Markdown"
+            "📋 Какую страну ты выберешь?",
+            reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
         )
         return COUNTRY
 
-async def country_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def country_handler(update, context):
     country = update.message.text.lower()
     full = context.user_data.get("full_df", df)
     current = context.user_data.get("current_df", df)
-    
     filtered = filter_by_country(current, country)
     if filtered.empty:
         filtered = filter_by_country(full, country)
-    
     context.user_data["current_df"] = filtered
-    
     hookah = get_random_hookah(filtered, full)
     hookahs = context.user_data.get("hookahs", [])
     hookahs.append(hookah)
     context.user_data["hookahs"] = hookahs
-    
-    print(f"📊 После страны осталось: {len(filtered)}, всего вкусов: {len(hookahs)}")
     
     if len(hookahs) >= 3:
         result = format_hookah_result(hookahs)
-        await update.message.reply_text(
-            "🌟 *Благодарим за ответы и выбор ИИ-ассистента!*\n\n"
-            "Ваш идеальный кальян будет готов уже скоро.\n"
-            "Приятного отдыха! 🎉",
-            parse_mode="Markdown"
-        )
-        await update.message.reply_text(result, parse_mode="Markdown")
+        await update.message.reply_text("🌟 Благодарим за ответы!\n\n" + result)
         return ConversationHandler.END
     
-    reply_keyboard = [["Да", "Нет"]]
+    keyboard = [["Да", "Нет"]]
     await update.message.reply_text(
-        "📋 *Вопрос:*\nДобавить еще один вкус?",
-        reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True, resize_keyboard=True),
-        parse_mode="Markdown"
+        "📋 Добавить еще один вкус?",
+        reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
     )
     return ADD_MORE_2
 
-async def add_more_2_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def add_more_2_handler(update, context):
     choice = update.message.text.lower()
-    
     if choice == "нет":
         hookahs = context.user_data.get("hookahs", [])
         result = format_hookah_result(hookahs)
-        await update.message.reply_text(
-            "🌟 *Благодарим за ответы и выбор ИИ-ассистента!*\n\n"
-            "Ваш идеальный кальян будет готов уже скоро.\n"
-            "Приятного отдыха! 🎉",
-            parse_mode="Markdown"
-        )
-        await update.message.reply_text(result, parse_mode="Markdown")
+        await update.message.reply_text("🌟 Благодарим за ответы!\n\n" + result)
         return ConversationHandler.END
-    
     else:
-        # ============ ОТПРАВКА КАРТИНКИ ============
-        await update.message.reply_photo(
-            photo=PICTURE_URL,
-            caption=(
-                "🖼️ *Какая картинка вам нравится больше всего?*\n\n"
-                "Выберите цифру:\n"
-                "1️⃣ — Ягодный, цветочный, травянистый, древесный, ментоловый, ореховый\n"
-                "2️⃣ — Цитрусовый, тропический, напиточный, фруктовый, алкогольный\n"
-                "3️⃣ — Безароматика, специи, чайный, десертный, парфюм, сливочный\n"
-                "4️⃣ — Алкогольный, напиточный, чайный, десертный, парфюм, безароматика"
-            ),
-            parse_mode="Markdown"
-        )
-        
-        reply_keyboard = [["1", "2", "3", "4"]]
         await update.message.reply_text(
-            "📋 Выберите цифру: 1, 2, 3 или 4",
-            reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True, resize_keyboard=True)
+            "🖼️ Выберите цифру:\n"
+            "1 — Ягодный, цветочный, травянистый, древесный, ментоловый, ореховый\n"
+            "2 — Цитрусовый, тропический, напиточный, фруктовый, алкогольный\n"
+            "3 — Безароматика, специи, чайный, десертный, парфюм, сливочный\n"
+            "4 — Алкогольный, напиточный, чайный, десертный, парфюм, безароматика"
+        )
+        keyboard = [["1", "2", "3", "4"]]
+        await update.message.reply_text(
+            "Выберите цифру: 1, 2, 3 или 4",
+            reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
         )
         return PICTURE
 
-async def picture_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def picture_handler(update, context):
     picture = update.message.text.lower()
     full = context.user_data.get("full_df", df)
     current = context.user_data.get("current_df", df)
-    
     filtered = filter_by_picture(current, picture)
     if filtered.empty:
         filtered = filter_by_picture(full, picture)
-    
     hookah = get_random_hookah(filtered, full)
     hookahs = context.user_data.get("hookahs", [])
     hookahs.append(hookah)
-    context.user_data["hookahs"] = hookahs
-    
-    print(f"📊 После картинки осталось: {len(filtered)}, всего вкусов: {len(hookahs)}")
-    
     result = format_hookah_result(hookahs)
-    await update.message.reply_text(
-        "🌟 *Благодарим за ответы и выбор ИИ-ассистента!*\n\n"
-        "Ваш идеальный кальян будет готов уже скоро.\n"
-        "Приятного отдыха! 🎉",
-        parse_mode="Markdown"
-    )
-    await update.message.reply_text(result, parse_mode="Markdown")
+    await update.message.reply_text("🌟 Благодарим за ответы!\n\n" + result)
     return ConversationHandler.END
 
-async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("👋 До встречи! Нажмите /start")
+async def cancel(update, context):
+    await update.message.reply_text("👋 До встречи!")
     return ConversationHandler.END
+
+# ================= НАСТРОЙКА ВЕБХУКОВ =================
+
+@app.route('/', methods=['GET', 'POST'])
+def webhook():
+    """Обработка вебхука от Telegram"""
+    if request.method == 'POST':
+        update = Update.de_json(request.get_json(force=True), application.bot)
+        application.process_update(update)
+    return 'OK', 200
+
+@app.route('/set_webhook', methods=['GET'])
+def set_webhook():
+    """Установка вебхука (вызвать один раз)"""
+    webhook_url = request.args.get('url')
+    if webhook_url:
+        application.bot.set_webhook(webhook_url)
+        return f'✅ Webhook установлен на {webhook_url}'
+    return '❌ Укажите параметр url'
 
 # ================= ЗАПУСК =================
+application = None
 
-def run_bot():
+def main():
+    global application
     if df is None:
         print("❌ Ошибка: не загружен файл tanaka.xls")
         return
     
     application = Application.builder().token(TOKEN).build()
     
-    conv_handler = ConversationHandler(
+    conv = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
         states={
             WELCOME: [MessageHandler(filters.Text("❓ Подобрать"), welcome_handler)],
@@ -436,13 +327,10 @@ def run_bot():
         },
         fallbacks=[CommandHandler("cancel", cancel)],
     )
+    application.add_handler(conv)
     
-    application.add_handler(conv_handler)
-    print("🤖 Бот успешно запущен!")
-    application.run_polling()
+    print("🤖 Бот готов, работает в режиме вебхуков!")
+    app.run(host='0.0.0.0', port=8000)
 
 if __name__ == "__main__":
-    bot_thread = Thread(target=run_bot)
-    bot_thread.start()
-    port = int(os.environ.get("PORT", 8080))
-    app.run(host='0.0.0.0', port=port)
+    main()
