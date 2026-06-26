@@ -163,7 +163,10 @@ async def start_handler(update, context):
     return BLAND
 
 async def restart_handler(update, context):
-    """Полный перезапуск — возврат к приветствию"""
+    """Полный перезапуск — возврат к приветствию (с очисткой данных)"""
+    # Очищаем все данные пользователя
+    context.user_data.clear()
+    
     keyboard = [[KeyboardButton("🚀 Старт")]]
     await update.message.reply_text(
         "🌟 *Добро пожаловать в лаунж нового поколения — Танока!* 🌟\n\n"
