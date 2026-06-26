@@ -256,19 +256,12 @@ async def add_more_2_handler(update, context):
         await update.message.reply_text("🌟 Благодарим за ответы!\n\n" + result)
         return ConversationHandler.END
     else:
-        # ============ ОТПРАВКА КАРТИНКИ ============
+        # ============ ОТПРАВКА КАРТИНКИ (БЕЗ СПИСКА) ============
         picture_url = "https://raw.githubusercontent.com/tanoka306/hookah-bot/main/pic_collage.jpg"
         
         await update.message.reply_photo(
             photo=picture_url,
-            caption=(
-                "🖼️ *Какая картинка вам нравится больше всего?*\n\n"
-                "Выберите цифру:\n"
-                "1️⃣ — Ягодный, цветочный, травянистый, древесный, ментоловый, ореховый\n"
-                "2️⃣ — Цитрусовый, тропический, напиточный, фруктовый, алкогольный\n"
-                "3️⃣ — Безароматика, специи, чайный, десертный, парфюм, сливочный\n"
-                "4️⃣ — Алкогольный, напиточный, чайный, десертный, парфюм, безароматика"
-            ),
+            caption="🖼️ *Какая картинка вам нравится больше всего?*\n\nВыберите цифру: 1, 2, 3 или 4",
             parse_mode="Markdown"
         )
         
